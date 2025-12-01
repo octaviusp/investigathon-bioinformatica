@@ -1,0 +1,20 @@
+[project]
+name = "investigathon"
+version = "0.1.0"
+description = "Solución al track Bioinformática. Octavio Pavón, Jeremias Tanoni, Valentin Altoe, Delfina Mosqueira."
+authors = [
+    {name = "Octavio",email = "octaviopavon7@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pandas>=2.0.0",
+]
+
+[tool.poetry]
+package-mode = false
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

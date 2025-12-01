@@ -1,0 +1,12 @@
+---
+alwaysApply: true
+---
+
+
+El código que generes tiene que seguir estas prácticas siempre:
+
+1) Simple, elegante, limpio.
+2) Nombres descriptivos para variables y funciones.
+3) Funciones con documentacion docstring en español, resumiendo brevemente que hace y cada uno de sus argumentos.
+4) Codigo muy corto, conciso al grano.
+5) Archivos modulares.
