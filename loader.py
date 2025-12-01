@@ -29,12 +29,30 @@ def extraer_id_base(identificador: str) -> str:
     return match.group(1) if match else id_limpio.split('.')[0]
 
 
-def parsear_taxonomia(taxonomia_str: str) -> dict:
+def normalizar_nombre_taxonomico(nombre: str) -> str:
+    """
+    Normaliza un nombre taxonómico para uso como label.
+    
+    Convierte a lowercase y reemplaza espacios por guiones bajos.
+    
+    Args:
+        nombre: Nombre taxonómico original (ej: "Clydonella sawyeri")
+    
+    Returns:
+        Nombre normalizado (ej: "clydonella_sawyeri")
+    """
+    if not nombre or nombre == '':
+        return ''
+    return nombre.lower().replace(' ', '_').strip()
+
+
+def parsear_taxonomia(taxonomia_str: str, normalizar: bool = True) -> dict:
     """
     Parsea el string de taxonomía en formato k__;p__;c__;o__;f__;g__;s__
     
     Args:
         taxonomia_str: String con formato 'k__Reino_ID;p__Filo_ID;...'
+        normalizar: Si True, normaliza los nombres (lowercase, espacios a guiones bajos)
     
     Returns:
         Diccionario con las claves: kingdom, phylum, class, order, family, genus, species
@@ -48,6 +66,10 @@ def parsear_taxonomia(taxonomia_str: str) -> dict:
         if match:
             prefijo = match.group(1)
             nombre = match.group(2)
+            
+            # Normalizar si está activado
+            if normalizar:
+                nombre = normalizar_nombre_taxonomico(nombre)
             
             if prefijo == 'k':
                 taxonomia['kingdom'] = nombre
@@ -67,12 +89,13 @@ def parsear_taxonomia(taxonomia_str: str) -> dict:
     return taxonomia
 
 
-def cargar_taxon(archivo_taxon: str) -> pd.DataFrame:
+def cargar_taxon(archivo_taxon: str, normalizar: bool = True) -> pd.DataFrame:
     """
     Carga el archivo .taxon y parsea la información taxonómica.
     
     Args:
         archivo_taxon: Ruta al archivo .taxon
+        normalizar: Si True, normaliza los nombres taxonómicos (lowercase, espacios a guiones bajos)
     
     Returns:
         DataFrame con columnas: sequence_id, kingdom, phylum, class, order, family, genus, species
@@ -94,7 +117,7 @@ def cargar_taxon(archivo_taxon: str) -> pd.DataFrame:
             taxonomia_str = partes[1]
             
             id_base = extraer_id_base(id_completo)
-            taxonomia = parsear_taxonomia(taxonomia_str)
+            taxonomia = parsear_taxonomia(taxonomia_str, normalizar=normalizar)
             
             datos.append({
                 'sequence_id': id_base,
@@ -155,19 +178,20 @@ def cargar_fasta(archivo_fasta: str) -> pd.DataFrame:
     return pd.DataFrame(datos)
 
 
-def cargar_dataset(archivo_taxon: str, archivo_fasta: str) -> pd.DataFrame:
+def cargar_dataset(archivo_taxon: str, archivo_fasta: str, normalizar: bool = True) -> pd.DataFrame:
     """
     Carga y une los archivos .taxon y .fasta en un único DataFrame.
     
     Args:
         archivo_taxon: Ruta al archivo .taxon
         archivo_fasta: Ruta al archivo .fasta
+        normalizar: Si True, normaliza los nombres taxonómicos (lowercase, espacios a guiones bajos)
     
     Returns:
         DataFrame unificado con toda la información
     """
     print("Cargando archivo .taxon...")
-    df_taxon = cargar_taxon(archivo_taxon)
+    df_taxon = cargar_taxon(archivo_taxon, normalizar=normalizar)
     print(f"  ✓ Cargadas {len(df_taxon)} entradas taxonómicas")
     
     print("Cargando archivo .fasta...")
