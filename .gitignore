@@ -43,3 +43,5 @@ Thumbs.db
 # Project specific
 *.fasta
 *.taxon
+*.png
+!distribucion_por_taxon.png
