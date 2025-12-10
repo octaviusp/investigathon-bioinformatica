@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.installed.cfg
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+
+# Project specific - Data files (too large for git)
+data/MIDORI2_UNIQ_NUC_GB268_CO1.fasta
+data/MIDORI2_UNIQ_NUC_GB268_CO1.taxon
+data/data_clean_*.csv
+data/data_clean_*.fasta
+
+# Output files (generated)
+output/
+
+# Compiled binaries
+data_cleaning_pipeline
+*.o
+*.out
+
+# Temporary files
+temp_*.fasta
+*.tmp
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# Trash folder
+trash/
+
+# Jupyter
+.ipynb_checkpoints/
