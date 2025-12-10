@@ -35,6 +35,7 @@ from pathlib import Path
 import pandas as pd
 from Bio import SeqIO
 
+from fft import find_hypervariable_region
 from visualize_alignment import visualize_alignment
 
 # =============================================================================
@@ -200,6 +201,23 @@ Ejemplos:
         action="store_true",
         help="Generar visualización PNG del alineamiento",
     )
+    parser.add_argument(
+        "--fft",
+        action="store_true",
+        help="Detectar regiones hipervariables con FFT",
+    )
+    parser.add_argument(
+        "--window",
+        type=int,
+        default=50,
+        help="Tamaño de ventana FFT en bp (default: 50)",
+    )
+    parser.add_argument(
+        "--step",
+        type=int,
+        default=10,
+        help="Paso de ventana FFT en bp (default: 10)",
+    )
 
     args = parser.parse_args()
 
@@ -237,10 +255,55 @@ Ejemplos:
     print(f"\nResultado: {output_path}")
     print(f"Secuencias alineadas: {min(len(sequences), args.max_seqs)}")
 
-    # 5. Visualizar
+    # 5. Análisis FFT de regiones hipervariables
+    hypervariable_region = None
+    if args.fft:
+        print("\nAnalizando regiones hipervariables (FFT)...")
+        result = find_hypervariable_region(
+            output_path,
+            window_size=args.window,
+            step=args.step,
+            n_sample=args.max_seqs,
+        )
+        if result:
+            hypervariable_region = (result["start"], result["end"])
+            print(f"  Región hipervariable: [{result['start']}, {result['end']}]")
+            print(f"  Varianza máxima: {result['variance']:.2f}")
+
+            # Guardar gráfico del perfil FFT
+            import matplotlib.pyplot as plt
+
+            fft_png_path = OUTPUT_DIR / f"{args.grupo}_fft_profile.png"
+            plt.figure(figsize=(12, 5))
+            plt.plot(result["positions"], result["profile"], color="purple", linewidth=1.5)
+            plt.axvspan(
+                result["start"],
+                result["end"],
+                color="red",
+                alpha=0.3,
+                label=f"Hipervariable [{result['start']}-{result['end']}]",
+            )
+            plt.xlabel("Posición en la Secuencia (bp)", fontsize=11)
+            plt.ylabel("Varianza Espectral (FFT)", fontsize=11)
+            plt.title(
+                f"Detección de Regiones Hipervariables - {args.grupo}\n"
+                f"Ventana: {args.window} bp | Paso: {args.step} bp",
+                fontsize=12,
+                fontweight="bold",
+            )
+            plt.legend(fontsize=10)
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            plt.savefig(fft_png_path, dpi=150, bbox_inches="tight", facecolor="white")
+            plt.close()
+            print(f"  Perfil FFT guardado: {fft_png_path}")
+
+    # 6. Visualizar
     if args.visualize:
         png_path = OUTPUT_DIR / f"{args.grupo}_alignment.png"
-        visualize_alignment(output_path, png_path, args.max_seqs)
+        visualize_alignment(
+            output_path, png_path, args.max_seqs, highlight_region=hypervariable_region
+        )
 
 
 if __name__ == "__main__":

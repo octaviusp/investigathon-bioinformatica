@@ -50,7 +50,10 @@ CHAR_TO_NUM = {"A": 0, "T": 1, "C": 2, "G": 3, "-": 4, "N": 5}
 
 
 def visualize_alignment(
-    fasta_path: Path, output_path: Path, max_seqs: int = 50
+    fasta_path: Path,
+    output_path: Path,
+    max_seqs: int = 50,
+    highlight_region: tuple = None,
 ) -> None:
     """
     Genera imagen PNG del alineamiento con colores por nucleótido.
@@ -59,6 +62,7 @@ def visualize_alignment(
         fasta_path: Ruta al archivo FASTA alineado
         output_path: Ruta donde guardar el PNG
         max_seqs: Máximo de secuencias a mostrar (default: 50)
+        highlight_region: Tupla (start, end) para resaltar región hipervariable
 
     Returns:
         None. Guarda la imagen en output_path.
@@ -106,6 +110,17 @@ def visualize_alignment(
 
     # Mostrar matriz
     ax.imshow(matrix, cmap=cmap, aspect="auto", vmin=0, vmax=5)
+
+    # Resaltar región hipervariable si se proporciona
+    if highlight_region:
+        start, end = highlight_region
+        ax.axvspan(
+            start,
+            end,
+            color="red",
+            alpha=0.15,
+            label=f"Hipervariable [{start}-{end}]",
+        )
 
     # Configurar ejes
     ax.set_yticks(range(len(labels)))
