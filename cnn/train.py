@@ -5,6 +5,8 @@ Usage:
     poetry run python -m cnn.train
 """
 
+import signal
+import sys
 import time
 from pathlib import Path
 
@@ -24,6 +26,66 @@ from .visualize import (
     save_training_history,
 )
 
+# Global state for interrupt handling
+_training_state = {
+    "model": None,
+    "optimizer": None,
+    "history": None,
+    "epoch": 0,
+    "best_model_state": None,
+    "config": None,
+    "num_classes": None,
+    "interrupted": False,
+}
+
+
+def _save_checkpoint(reason: str = "checkpoint"):
+    """Save current training state to checkpoint."""
+    state = _training_state
+    if state["model"] is None or state["config"] is None:
+        return
+
+    output_dir = Path(state["config"]["output_dir"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    checkpoint_path = output_dir / f"checkpoint_epoch_{state['epoch']}.pt"
+
+    torch.save(
+        {
+            "epoch": state["epoch"],
+            "model_state_dict": state["model"].state_dict(),
+            "optimizer_state_dict": state["optimizer"].state_dict(),
+            "best_model_state": state["best_model_state"],
+            "history": state["history"],
+            "num_classes": state["num_classes"],
+            "config": state["config"],
+        },
+        checkpoint_path,
+    )
+
+    # Also save history
+    if state["history"]:
+        save_training_history(state["history"], state["config"]["history_path"])
+
+    print(f"\n[CHECKPOINT] Saved: {checkpoint_path} ({reason})")
+    return checkpoint_path
+
+
+def _signal_handler(signum, frame):
+    """Handle interrupt signals gracefully."""
+    print(f"\n\n{'='*60}")
+    print("INTERRUPT RECEIVED - Saving checkpoint...")
+    print(f"{'='*60}")
+
+    _training_state["interrupted"] = True
+    checkpoint_path = _save_checkpoint("interrupted")
+
+    if checkpoint_path:
+        print(f"\nTraining interrupted at epoch {_training_state['epoch']}")
+        print(f"Resume with: checkpoint={checkpoint_path}")
+
+    sys.exit(0)
+
 
 def get_device(preferred: str = "mps") -> torch.device:
     """Get available device (MPS > CUDA > CPU)."""
@@ -41,9 +103,11 @@ def train_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     loss_weights: dict,
+    epoch: int = 0,
+    total_epochs: int = 0,
 ) -> tuple[float, dict]:
     """
-    Train for one epoch.
+    Train for one epoch with progress logging.
 
     Returns:
         (average_loss, accuracy_dict)
@@ -52,8 +116,10 @@ def train_epoch(
     total_loss = 0.0
     correct = {"class": 0, "order": 0, "family": 0}
     total = 0
+    num_batches = len(loader)
+    log_interval = max(1, num_batches // 5)  # Log ~5 times per epoch
 
-    for images, labels in loader:
+    for batch_idx, (images, labels) in enumerate(loader):
         images = images.to(device)
         targets = {k: v.to(device) for k, v in labels.items()}
 
@@ -71,6 +137,17 @@ def train_epoch(
         for level in ["class", "order", "family"]:
             preds = outputs[level].argmax(dim=1)
             correct[level] += (preds == targets[level]).sum().item()
+
+        # Progress log
+        if (batch_idx + 1) % log_interval == 0 or batch_idx == num_batches - 1:
+            progress = 100.0 * (batch_idx + 1) / num_batches
+            current_loss = total_loss / total
+            current_acc = {level: correct[level] / total for level in correct}
+            print(
+                f"  [{epoch}/{total_epochs}] Batch {batch_idx+1:4d}/{num_batches} ({progress:5.1f}%) | "
+                f"Loss: {current_loss:.4f} | "
+                f"Acc: C={current_acc['class']:.3f} O={current_acc['order']:.3f} F={current_acc['family']:.3f}"
+            )
 
     avg_loss = total_loss / total
     accuracy = {level: correct[level] / total for level in correct}
@@ -170,9 +247,14 @@ def train(
     if config is None:
         config = CONFIG
 
+    # Register signal handlers for graceful interrupt
+    signal.signal(signal.SIGINT, _signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+
     print("=" * 60)
     print("ARTHROPODA TAXONOMIC CLASSIFICATION CNN")
     print("=" * 60)
+    print("Press Ctrl+C to save checkpoint and exit gracefully")
 
     # Setup device
     device = get_device(config["device"])
@@ -250,30 +332,51 @@ def train(
     patience_counter = 0
     best_model_state = None
 
+    # Update global state for interrupt handling
+    _training_state.update({
+        "model": model,
+        "optimizer": optimizer,
+        "history": history,
+        "config": config,
+        "num_classes": num_classes,
+    })
+
     # Training loop
     print("\n--- Training ---")
     print(f"  Epochs: {config['epochs']}")
     print(f"  Batch size: {config['batch_size']}")
     print(f"  Learning rate: {config['learning_rate']}")
+    print(f"  Train batches: {len(train_loader)}")
+    print(f"  Val batches: {len(val_loader)}")
     print()
 
     start_time = time.time()
 
     for epoch in range(1, config["epochs"] + 1):
         epoch_start = time.time()
+        _training_state["epoch"] = epoch
+
+        print(f"\n{'='*60}")
+        print(f"EPOCH {epoch}/{config['epochs']}")
+        print(f"{'='*60}")
 
         # Train
+        print("\n[TRAIN]")
         train_loss, train_acc = train_epoch(
-            model, train_loader, optimizer, device, config["loss_weights"]
+            model, train_loader, optimizer, device, config["loss_weights"],
+            epoch=epoch, total_epochs=config["epochs"]
         )
 
         # Validate
+        print("\n[VALIDATE]")
         val_loss, val_acc = validate(
             model, val_loader, device, config["loss_weights"]
         )
 
         # Update scheduler
+        old_lr = optimizer.param_groups[0]["lr"]
         scheduler.step(val_loss)
+        new_lr = optimizer.param_groups[0]["lr"]
 
         # Record history
         history["train_loss"].append(train_loss)
@@ -283,28 +386,41 @@ def train(
             history[f"val_acc_{level}"].append(val_acc[level])
 
         epoch_time = time.time() - epoch_start
+        elapsed_time = time.time() - start_time
+        eta = (elapsed_time / epoch) * (config["epochs"] - epoch)
 
-        # Print progress
-        print(
-            f"Epoch {epoch:3d}/{config['epochs']} | "
-            f"Loss: {train_loss:.4f}/{val_loss:.4f} | "
-            f"Acc: C={val_acc['class']:.3f} O={val_acc['order']:.3f} F={val_acc['family']:.3f} | "
-            f"{epoch_time:.1f}s"
-        )
+        # Print epoch summary
+        print(f"\n[EPOCH {epoch} SUMMARY]")
+        print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+        print(f"  Train Acc - Class: {train_acc['class']:.4f} | Order: {train_acc['order']:.4f} | Family: {train_acc['family']:.4f}")
+        print(f"  Val Acc   - Class: {val_acc['class']:.4f} | Order: {val_acc['order']:.4f} | Family: {val_acc['family']:.4f}")
+        print(f"  Time: {epoch_time:.1f}s | Elapsed: {elapsed_time/60:.1f}min | ETA: {eta/60:.1f}min")
+
+        if new_lr != old_lr:
+            print(f"  LR reduced: {old_lr:.6f} -> {new_lr:.6f}")
 
         # Early stopping check
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
             best_model_state = model.state_dict().copy()
+            _training_state["best_model_state"] = best_model_state
+            print(f"  *** New best model (val_loss={best_val_loss:.4f}) ***")
         else:
             patience_counter += 1
+            print(f"  No improvement ({patience_counter}/{config['early_stopping_patience']})")
             if patience_counter >= config["early_stopping_patience"]:
-                print(f"\nEarly stopping at epoch {epoch}")
+                print(f"\n[EARLY STOPPING] No improvement for {config['early_stopping_patience']} epochs")
                 break
 
+        # Save checkpoint every 5 epochs
+        if epoch % 5 == 0:
+            _save_checkpoint(f"epoch_{epoch}")
+
     total_time = time.time() - start_time
-    print(f"\nTraining completed in {total_time / 60:.1f} minutes")
+    print(f"\n{'='*60}")
+    print(f"Training completed in {total_time / 60:.1f} minutes")
+    print(f"{'='*60}")
 
     # Restore best model
     if best_model_state is not None:
