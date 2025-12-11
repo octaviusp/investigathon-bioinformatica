@@ -12,7 +12,10 @@ dependencies = [
     "matplotlib (>=3.10.7,<4.0.0)",
     "biopython (>=1.86,<2.0)",
     "numpy (>=2.3.5,<3.0.0)",
-    "scipy (>=1.11,<2.0.0)"
+    "scipy (>=1.11,<2.0.0)",
+    "torch (>=2.0) ; python_version >= \"3.13\" and python_version < \"3.15\"",
+    "torchvision (>=0.15) ; python_version >= \"3.13\" and python_version < \"3.15\"",
+    "scikit-learn (>=1.8.0,<2.0.0) ; python_version >= \"3.13\" and python_version < \"3.15\""
 ]
 
 
