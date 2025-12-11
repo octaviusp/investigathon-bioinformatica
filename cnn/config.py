@@ -16,7 +16,7 @@ CONFIG = {
     "csv_path": CSV_PATH,
     "fasta_path": FASTA_PATH,
     "phylum_filter": "Arthropoda",
-    "sample_size": 50000,
+    "sample_size": 1000,  # Small for testing, use 50000 for full training
     "img_size": 32,
     # Splits
     "train_split": 0.70,

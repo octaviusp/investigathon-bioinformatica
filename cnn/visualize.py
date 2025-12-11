@@ -97,26 +97,37 @@ def plot_confusion_matrix(
         max_labels: Max labels to show (for readability)
         show: Whether to display plot
     """
-    cm = confusion_matrix(y_true, y_pred)
+    # Get unique labels actually present in the data
+    unique_labels = np.unique(np.concatenate([y_true, y_pred]))
+    n_labels = len(unique_labels)
+
+    cm = confusion_matrix(y_true, y_pred, labels=unique_labels)
 
     # Normalize
     cm_norm = cm.astype("float") / (cm.sum(axis=1, keepdims=True) + 1e-10)
 
+    # Filter labels to only those present
+    display_labels = [labels[i] if i < len(labels) else str(i) for i in unique_labels]
+
     # Limit labels for readability
-    if len(labels) > max_labels:
-        # Show top classes by frequency
-        class_counts = np.bincount(y_true, minlength=len(labels))
-        top_indices = np.argsort(class_counts)[-max_labels:]
+    if n_labels > max_labels:
+        # Show top classes by frequency in y_true
+        class_counts = np.bincount(y_true, minlength=n_labels)
+        # Only consider indices that exist in unique_labels
+        valid_counts = [(i, class_counts[idx]) for i, idx in enumerate(unique_labels) if idx < len(class_counts)]
+        valid_counts.sort(key=lambda x: x[1], reverse=True)
+        top_indices = [x[0] for x in valid_counts[:max_labels]]
+        top_indices.sort()  # Keep order
         cm_norm = cm_norm[np.ix_(top_indices, top_indices)]
-        labels = [labels[i] for i in top_indices]
+        display_labels = [display_labels[i] for i in top_indices]
 
     fig, ax = plt.subplots(figsize=(12, 10))
     im = ax.imshow(cm_norm, cmap="Blues", aspect="auto")
 
-    ax.set_xticks(range(len(labels)))
-    ax.set_yticks(range(len(labels)))
-    ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=8)
-    ax.set_yticklabels(labels, fontsize=8)
+    ax.set_xticks(range(len(display_labels)))
+    ax.set_yticks(range(len(display_labels)))
+    ax.set_xticklabels(display_labels, rotation=45, ha="right", fontsize=8)
+    ax.set_yticklabels(display_labels, fontsize=8)
 
     ax.set_xlabel("Predicted", fontsize=11)
     ax.set_ylabel("True", fontsize=11)
@@ -151,10 +162,15 @@ def save_classification_report(
     Returns:
         Report dict with metrics
     """
+    # Get unique labels actually present in the data
+    unique_labels = np.unique(np.concatenate([y_true, y_pred]))
+    display_labels = [labels[i] if i < len(labels) else str(i) for i in unique_labels]
+
     report = classification_report(
         y_true,
         y_pred,
-        target_names=labels,
+        labels=unique_labels,
+        target_names=display_labels,
         output_dict=True,
         zero_division=0,
     )
@@ -163,7 +179,8 @@ def save_classification_report(
     report_text = classification_report(
         y_true,
         y_pred,
-        target_names=labels,
+        labels=unique_labels,
+        target_names=display_labels,
         zero_division=0,
     )
 
