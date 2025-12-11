@@ -21,6 +21,9 @@ poetry run python main.py Arthropoda -n 50
 poetry run python fft.py alignment.fasta -w 50 -s 10    # FFT analysis
 poetry run python visualize_alignment.py input.fasta    # Visualization
 
+# CNN Training - Multi-task taxonomic classifier
+poetry run python -m cnn.train                          # Train CNN model
+
 # C++ data cleaning pipeline (run once to generate clean datasets)
 g++ -O3 -std=c++17 -o data_cleaning_pipeline data_cleaning_pipeline.cpp
 ./data_cleaning_pipeline
@@ -59,18 +62,36 @@ g++ -O3 -std=c++17 -o data_cleaning_pipeline data_cleaning_pipeline.cpp
 | `fft.py` | FFT-based hypervariable region detection using sliding window spectral variance |
 | `visualize_alignment.py` | Generates colored alignment PNGs (A=green, T=red, C=blue, G=orange) |
 | `data_cleaning_pipeline.cpp` | C++ pipeline: dedup by hash, split by taxonomy level, filter outliers by length |
+| `cnn/` | PyTorch CNN module for multi-task taxonomic classification |
+
+## CNN Module (`cnn/`)
+
+Multi-task CNN classifier for Arthropoda taxonomic classification.
+
+| File | Purpose |
+|------|---------|
+| `config.py` | Hyperparameters, paths, training configuration |
+| `dataset.py` | `ArthropodaDataset` class, DNA→pixel conversion |
+| `model.py` | `MultiTaskCNN` architecture (4 conv blocks, 3 output heads) |
+| `train.py` | Training loop with checkpoints, early stopping, progress logging |
+| `visualize.py` | Loss curves, accuracy plots, confusion matrices |
+
+**Architecture**: DNA sequence → 32×32 RGB image → CNN → 3 classification heads (class, order, family)
+
+**Training**: `poetry run python -m cnn.train` (Ctrl+C saves checkpoint)
 
 ## Data Structure
 
 - **Input**: `data/MIDORI2_UNIQ_NUC_GB268_CO1.{taxon,fasta}` - Raw MIDORI2 dataset
 - **Cleaned**: `data/data_clean_{level}.{csv,fasta}` where level ∈ {species, genus, family, order, class, phylum}
-- **Output**: `output/{grupo}_aligned.fasta`, `output/{grupo}_alignment.png`, `output/{grupo}_fft_profile.png`
+- **Alignment Output**: `output/{grupo}_aligned.fasta`, `output/{grupo}_alignment.png`, `output/{grupo}_fft_profile.png`
+- **CNN Output**: `output/model_checkpoint.pt`, `output/training_history.json`, `output/*_curves.png`
 
 ## Three Core Problems (Research Goals)
 
 1. **Feature Selection**: Find optimal subsequence range [start, end] with maximum entropy/variance between species (FFT approach implemented)
-2. **Data Representation**: Determine optimal K-mer size for vectorization (Bag of Words on DNA)
-3. **Classification**: Train supervised model (RF/SVM/KNN) using optimized features
+2. **Data Representation**: DNA→pixel image conversion (A=Red, T=Blue, C=Green, G=Yellow) for CNN input
+3. **Classification**: Multi-task CNN classifier for taxonomic hierarchy (class→order→family)
 
 ## Taxonomic Levels
 
