@@ -1,0 +1,2 @@
+data/data_clean_insecta.csv filter=lfs diff=lfs merge=lfs -text
+data/data_clean_insecta.fasta filter=lfs diff=lfs merge=lfs -text

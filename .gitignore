@@ -36,6 +36,9 @@ data/MIDORI2_UNIQ_NUC_GB268_CO1.fasta
 data/MIDORI2_UNIQ_NUC_GB268_CO1.taxon
 data/data_clean_*.csv
 data/data_clean_*.fasta
+# Exception: keep Insecta dataset (smaller, needed for training)
+!data/data_clean_insecta.csv
+!data/data_clean_insecta.fasta
 
 # Output files (generated)
 output/
