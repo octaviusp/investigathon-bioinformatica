@@ -41,6 +41,8 @@ data/data_clean_*.fasta
 !data/data_clean_insecta.fasta
 !data/data_balanced_insecta.csv
 !data/data_balanced_insecta.fasta
+!data/data_families_insecta.csv
+!data/data_families_insecta.fasta
 
 # Output files (generated)
 output/
