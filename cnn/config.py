@@ -34,8 +34,8 @@ CONFIG = {
     "dropout": 0.5,  # Increased from 0.4 to reduce overfitting
     # Loss weights per taxonomic level (order + family only)
     "loss_weights": {"order": 1.0, "family": 0.5},
-    # Device (mps for Apple Silicon, cuda for NVIDIA, cpu for fallback)
-    "device": "mps",
+    # Device: "auto" (CUDA > MPS > CPU), or "cuda", "mps", "cpu"
+    "device": "auto",
     # Output
     "output_dir": OUTPUT_DIR,
     "model_path": OUTPUT_DIR / "model_checkpoint.pt",

@@ -87,12 +87,20 @@ def _signal_handler(signum, frame):
     sys.exit(0)
 
 
-def get_device(preferred: str = "mps") -> torch.device:
-    """Get available device (MPS > CUDA > CPU)."""
-    if preferred == "mps" and torch.backends.mps.is_available():
-        return torch.device("mps")
+def get_device(preferred: str = "auto") -> torch.device:
+    """Get available device (CUDA > MPS > CPU)."""
+    if preferred == "auto":
+        # Auto-detect: CUDA first, then MPS, then CPU
+        if torch.cuda.is_available():
+            return torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            return torch.device("mps")
+        else:
+            return torch.device("cpu")
     elif preferred == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
+    elif preferred == "mps" and torch.backends.mps.is_available():
+        return torch.device("mps")
     else:
         return torch.device("cpu")
 

@@ -18,6 +18,7 @@ from sklearn.preprocessing import LabelEncoder
 from cnn.config import CONFIG
 from cnn.dataset import sequence_to_image
 from cnn.interpret import load_model
+from cnn.train import get_device
 
 
 def clean_sequence(seq: str) -> str:
@@ -39,10 +40,10 @@ def clean_sequence(seq: str) -> str:
 
 def predict_sequence(sequence: str) -> dict:
     """Run prediction on a single DNA sequence."""
-    device = CONFIG["device"]
+    device = get_device(CONFIG["device"])
 
     # Load model
-    model, checkpoint = load_model(device=device)
+    model, checkpoint = load_model(device=str(device))
 
     # Try to get label_encoders from checkpoint, otherwise rebuild
     label_encoders = checkpoint.get("label_encoders", None)
