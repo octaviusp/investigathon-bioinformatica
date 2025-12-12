@@ -16,7 +16,8 @@ CONFIG = {
     "csv_path": CSV_PATH,
     "fasta_path": FASTA_PATH,
     "phylum_filter": "Arthropoda",
-    "sample_size": 1000,  # Small for testing, use 50000 for full training
+    "class_filter": "Insecta",  # Focus on Insecta only (652K samples)
+    "sample_size": 200000,  # Increased from 50K for better generalization
     "img_size": 32,
     # Splits
     "train_split": 0.70,
@@ -28,8 +29,9 @@ CONFIG = {
     "epochs": 50,
     "early_stopping_patience": 10,
     "lr_scheduler_patience": 5,
-    # Loss weights per taxonomic level
-    "loss_weights": {"class": 1.0, "order": 1.0, "family": 0.5},
+    "dropout": 0.5,  # Increased from 0.4 to reduce overfitting
+    # Loss weights per taxonomic level (order + family only)
+    "loss_weights": {"order": 1.0, "family": 0.5},
     # Device (mps for Apple Silicon, cuda for NVIDIA, cpu for fallback)
     "device": "mps",
     # Output

@@ -1,5 +1,5 @@
 """
-Training script for Multi-Task CNN.
+Training script for Insecta Multi-Task CNN (Order + Family).
 
 Usage:
     poetry run python -m cnn.train
@@ -114,7 +114,7 @@ def train_epoch(
     """
     model.train()
     total_loss = 0.0
-    correct = {"class": 0, "order": 0, "family": 0}
+    correct = {"order": 0, "family": 0}
     total = 0
     num_batches = len(loader)
     log_interval = max(1, num_batches // 5)  # Log ~5 times per epoch
@@ -133,8 +133,8 @@ def train_epoch(
         total_loss += loss.item() * images.size(0)
         total += images.size(0)
 
-        # Compute accuracy
-        for level in ["class", "order", "family"]:
+        # Compute accuracy (order + family only)
+        for level in ["order", "family"]:
             preds = outputs[level].argmax(dim=1)
             correct[level] += (preds == targets[level]).sum().item()
 
@@ -146,7 +146,7 @@ def train_epoch(
             print(
                 f"  [{epoch}/{total_epochs}] Batch {batch_idx+1:4d}/{num_batches} ({progress:5.1f}%) | "
                 f"Loss: {current_loss:.4f} | "
-                f"Acc: C={current_acc['class']:.3f} O={current_acc['order']:.3f} F={current_acc['family']:.3f}"
+                f"Acc: O={current_acc['order']:.3f} F={current_acc['family']:.3f}"
             )
 
     avg_loss = total_loss / total
@@ -169,7 +169,7 @@ def validate(
     """
     model.eval()
     total_loss = 0.0
-    correct = {"class": 0, "order": 0, "family": 0}
+    correct = {"order": 0, "family": 0}
     total = 0
 
     with torch.no_grad():
@@ -183,7 +183,7 @@ def validate(
             total_loss += loss.item() * images.size(0)
             total += images.size(0)
 
-            for level in ["class", "order", "family"]:
+            for level in ["order", "family"]:
                 preds = outputs[level].argmax(dim=1)
                 correct[level] += (preds == targets[level]).sum().item()
 
@@ -208,7 +208,7 @@ def evaluate(
     model.eval()
     results = {
         level: {"y_true": [], "y_pred": []}
-        for level in ["class", "order", "family"]
+        for level in ["order", "family"]
     }
 
     with torch.no_grad():
@@ -217,7 +217,7 @@ def evaluate(
 
             outputs = model(images)
 
-            for level in ["class", "order", "family"]:
+            for level in ["order", "family"]:
                 preds = outputs[level].argmax(dim=1).cpu().numpy()
                 true = labels[level].numpy()
                 results[level]["y_true"].extend(true)
@@ -252,7 +252,7 @@ def train(
     signal.signal(signal.SIGTERM, _signal_handler)
 
     print("=" * 60)
-    print("ARTHROPODA TAXONOMIC CLASSIFICATION CNN")
+    print("INSECTA TAXONOMIC CLASSIFICATION CNN (Order + Family)")
     print("=" * 60)
     print("Press Ctrl+C to save checkpoint and exit gracefully")
 
@@ -266,6 +266,7 @@ def train(
         csv_path=config["csv_path"],
         fasta_path=config["fasta_path"],
         phylum_filter=config["phylum_filter"],
+        class_filter=config.get("class_filter", "Insecta"),
         sample_size=config["sample_size"],
         train_split=config["train_split"],
         val_split=config["val_split"],
@@ -296,12 +297,12 @@ def train(
         pin_memory=True,
     )
 
-    # Create model
+    # Create model (2-head: order + family)
     print("\n--- Creating Model ---")
     model = MultiTaskCNN(
-        num_classes=num_classes["class"],
         num_orders=num_classes["order"],
         num_families=num_classes["family"],
+        dropout=config.get("dropout", 0.5),
     )
     model = model.to(device)
     print(f"  Parameters: {model.count_parameters():,}")
@@ -315,14 +316,12 @@ def train(
         patience=config["lr_scheduler_patience"],
     )
 
-    # Training history
+    # Training history (order + family only)
     history = {
         "train_loss": [],
         "val_loss": [],
-        "train_acc_class": [],
         "train_acc_order": [],
         "train_acc_family": [],
-        "val_acc_class": [],
         "val_acc_order": [],
         "val_acc_family": [],
     }
@@ -381,7 +380,7 @@ def train(
         # Record history
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        for level in ["class", "order", "family"]:
+        for level in ["order", "family"]:
             history[f"train_acc_{level}"].append(train_acc[level])
             history[f"val_acc_{level}"].append(val_acc[level])
 
@@ -392,8 +391,8 @@ def train(
         # Print epoch summary
         print(f"\n[EPOCH {epoch} SUMMARY]")
         print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
-        print(f"  Train Acc - Class: {train_acc['class']:.4f} | Order: {train_acc['order']:.4f} | Family: {train_acc['family']:.4f}")
-        print(f"  Val Acc   - Class: {val_acc['class']:.4f} | Order: {val_acc['order']:.4f} | Family: {val_acc['family']:.4f}")
+        print(f"  Train Acc - Order: {train_acc['order']:.4f} | Family: {train_acc['family']:.4f}")
+        print(f"  Val Acc   - Order: {val_acc['order']:.4f} | Family: {val_acc['family']:.4f}")
         print(f"  Time: {epoch_time:.1f}s | Elapsed: {elapsed_time/60:.1f}min | ETA: {eta/60:.1f}min")
 
         if new_lr != old_lr:
@@ -427,7 +426,7 @@ def train(
         model.load_state_dict(best_model_state)
         print(f"Restored best model (val_loss={best_val_loss:.4f})")
 
-    # Save model
+    # Save model with label_encoders for inference
     output_dir = Path(config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -436,6 +435,7 @@ def train(
             "model_state_dict": model.state_dict(),
             "num_classes": num_classes,
             "config": config,
+            "label_encoders": label_encoders,  # Save for inference decoding
         },
         config["model_path"],
     )
@@ -453,39 +453,35 @@ def train(
     print("\n--- Test Set Evaluation ---")
     results = evaluate(model, test_loader, device, label_encoders)
 
-    # Classification reports and confusion matrices
+    # Classification reports and confusion matrices (order + family)
     report_path = output_dir / "classification_report.txt"
     if report_path.exists():
         report_path.unlink()
 
-    for level in ["class", "order"]:  # Skip family (too many classes for confusion matrix)
-        y_true = results[level]["y_true"]
-        y_pred = results[level]["y_pred"]
-        labels = results[level]["labels"]
+    # Order - confusion matrix + report
+    y_true = results["order"]["y_true"]
+    y_pred = results["order"]["y_pred"]
+    labels = results["order"]["labels"]
+    acc = (y_true == y_pred).mean()
+    print(f"  Order accuracy: {acc:.4f}")
 
-        # Accuracy
-        acc = (y_true == y_pred).mean()
-        print(f"  {level.capitalize()} accuracy: {acc:.4f}")
+    plot_confusion_matrix(
+        y_true,
+        y_pred,
+        labels,
+        "Order Confusion Matrix",
+        output_dir / "confusion_matrix_order.png",
+    )
 
-        # Confusion matrix
-        plot_confusion_matrix(
-            y_true,
-            y_pred,
-            labels,
-            f"{level.capitalize()} Confusion Matrix",
-            output_dir / f"confusion_matrix_{level}.png",
-        )
+    save_classification_report(
+        y_true,
+        y_pred,
+        labels,
+        "order",
+        report_path,
+    )
 
-        # Classification report
-        save_classification_report(
-            y_true,
-            y_pred,
-            labels,
-            level,
-            report_path,
-        )
-
-    # Family (report only, no confusion matrix)
+    # Family (report only, too many classes for confusion matrix)
     y_true = results["family"]["y_true"]
     y_pred = results["family"]["y_pred"]
     labels = results["family"]["labels"]

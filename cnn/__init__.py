@@ -8,10 +8,19 @@ Multi-task CNN that classifies DNA sequences into taxonomic levels:
 
 Usage:
     poetry run python -m cnn.train
+    poetry run python -m cnn.interpret  # Analyze learned filters
 """
 
 from .config import CONFIG
 from .dataset import ArthropodaDataset, sequence_to_image
 from .model import MultiTaskCNN
+from .interpret import run_interpretation, analyze_all_conv1_filters
 
-__all__ = ["CONFIG", "ArthropodaDataset", "sequence_to_image", "MultiTaskCNN"]
+__all__ = [
+    "CONFIG",
+    "ArthropodaDataset",
+    "sequence_to_image",
+    "MultiTaskCNN",
+    "run_interpretation",
+    "analyze_all_conv1_filters",
+]

@@ -1,11 +1,11 @@
 """
-Dataset class for Arthropoda DNA sequences.
+Dataset class for Insecta DNA sequences.
 
 Handles:
-- Loading and filtering Arthropoda from phylum data
+- Loading and filtering Insecta from phylum data
 - Stratified sampling
 - DNA → pixel image conversion
-- Label encoding for class/order/family
+- Label encoding for order/family (2-head model)
 """
 
 from pathlib import Path
@@ -50,12 +50,12 @@ def sequence_to_image(seq: str, size: int = 32) -> np.ndarray:
     return img
 
 
-class ArthropodaDataset(Dataset):
+class InsectaDataset(Dataset):
     """
-    PyTorch Dataset for Arthropoda DNA sequences.
+    PyTorch Dataset for Insecta DNA sequences.
 
-    Loads sequences from CSV+FASTA, filters Arthropoda, samples stratified,
-    and provides (image, labels) pairs.
+    Loads sequences from CSV+FASTA, filters Insecta, samples stratified,
+    and provides (image, labels) pairs for order/family classification.
     """
 
     def __init__(
@@ -76,7 +76,7 @@ class ArthropodaDataset(Dataset):
             fasta_path: Path to FASTA with sequences
             seq_ids: List of sequence IDs to include (if None, loads all)
             labels_df: Pre-filtered DataFrame with labels
-            label_encoders: Dict of LabelEncoder for each level
+            label_encoders: Dict of LabelEncoder for order/family
             img_size: Output image size
             transform: Optional torchvision transforms
         """
@@ -96,10 +96,7 @@ class ArthropodaDataset(Dataset):
         # Load sequences from FASTA
         self.sequences = self._load_sequences()
 
-        # Encode labels
-        self.class_labels = self.label_encoders["class"].transform(
-            self.labels_df["class"].values
-        )
+        # Encode labels (order + family only)
         self.order_labels = self.label_encoders["order"].transform(
             self.labels_df["order"].values
         )
@@ -136,8 +133,8 @@ class ArthropodaDataset(Dataset):
         if self.transform:
             img = self.transform(img)
 
+        # Only order + family labels (2-head model)
         labels = {
-            "class": torch.tensor(self.class_labels[idx], dtype=torch.long),
             "order": torch.tensor(self.order_labels[idx], dtype=torch.long),
             "family": torch.tensor(self.family_labels[idx], dtype=torch.long),
         }
@@ -145,11 +142,16 @@ class ArthropodaDataset(Dataset):
         return img, labels
 
 
+# Backward compatibility alias
+ArthropodaDataset = InsectaDataset
+
+
 def prepare_data(
     csv_path: Path,
     fasta_path: Path,
     phylum_filter: str = "Arthropoda",
-    sample_size: int = 500,
+    class_filter: str = "Insecta",
+    sample_size: int = 200000,
     train_split: float = 0.70,
     val_split: float = 0.15,
     test_split: float = 0.15,
@@ -157,12 +159,13 @@ def prepare_data(
     img_size: int = 32,
 ) -> tuple:
     """
-    Prepare train/val/test datasets.
+    Prepare train/val/test datasets for Insecta classification.
 
     Args:
         csv_path: Path to CSV
         fasta_path: Path to FASTA
         phylum_filter: Phylum to filter (e.g., "Arthropoda")
+        class_filter: Class to filter (e.g., "Insecta")
         sample_size: Number of sequences to sample
         train_split, val_split, test_split: Split ratios
         random_state: Random seed
@@ -173,71 +176,73 @@ def prepare_data(
     """
     print(f"Loading data from {csv_path}...")
 
-    # Load and filter
+    # Load and filter by phylum
     df = pd.read_csv(csv_path)
     df_filtered = df[df["phylum"] == phylum_filter].copy()
     print(f"  {phylum_filter} sequences: {len(df_filtered):,}")
 
-    # Remove rare classes (need at least 2 members for stratified split)
-    class_counts = df_filtered["class"].value_counts()
-    valid_classes = class_counts[class_counts >= 2].index
-    df_filtered = df_filtered[df_filtered["class"].isin(valid_classes)]
-    print(f"  After removing rare classes: {len(df_filtered):,}")
+    # Filter by class (Insecta only)
+    if class_filter:
+        df_filtered = df_filtered[df_filtered["class"] == class_filter].copy()
+        print(f"  Filtered to {class_filter}: {len(df_filtered):,}")
 
-    # Stratified sample by class
+    # Remove rare orders (need at least 2 members for stratified split)
+    order_counts = df_filtered["order"].value_counts()
+    valid_orders = order_counts[order_counts >= 2].index
+    df_filtered = df_filtered[df_filtered["order"].isin(valid_orders)]
+    print(f"  After removing rare orders: {len(df_filtered):,}")
+
+    # Stratified sample by order (not class, since we only have Insecta)
     if len(df_filtered) > sample_size:
         print(f"  Stratified sampling {sample_size:,} sequences...")
         df_sampled, _ = train_test_split(
             df_filtered,
             train_size=sample_size,
-            stratify=df_filtered["class"],
+            stratify=df_filtered["order"],
             random_state=random_state,
         )
     else:
         df_sampled = df_filtered.copy()
 
-    # After sampling, ensure each class has enough samples for stratified split
-    # Need at least 3 samples per class (1 for each split)
-    min_samples_per_class = 3
-    class_counts = df_sampled["class"].value_counts()
-    valid_classes = class_counts[class_counts >= min_samples_per_class].index
-    df_sampled = df_sampled[df_sampled["class"].isin(valid_classes)].copy()
+    # After sampling, ensure each order has enough samples for stratified split
+    min_samples_per_order = 3
+    order_counts = df_sampled["order"].value_counts()
+    valid_orders = order_counts[order_counts >= min_samples_per_order].index
+    df_sampled = df_sampled[df_sampled["order"].isin(valid_orders)].copy()
 
     print(f"  Sampled: {len(df_sampled):,} sequences")
 
-    # Create label encoders
+    # Create label encoders (order + family only, no class head)
     label_encoders = {
-        "class": LabelEncoder().fit(df_sampled["class"]),
         "order": LabelEncoder().fit(df_sampled["order"]),
         "family": LabelEncoder().fit(df_sampled["family"]),
     }
 
     num_classes = {
-        "class": len(label_encoders["class"].classes_),
         "order": len(label_encoders["order"].classes_),
         "family": len(label_encoders["family"].classes_),
     }
 
-    print(f"  Classes: {num_classes['class']}, Orders: {num_classes['order']}, Families: {num_classes['family']}")
+    print(f"  Orders: {num_classes['order']}, Families: {num_classes['family']}")
 
-    # Train/val/test split (use simple random split if stratified fails)
+    # Train/val/test split stratified by order
     try:
         train_df, temp_df = train_test_split(
             df_sampled,
             train_size=train_split,
-            stratify=df_sampled["class"],
+            stratify=df_sampled["order"],
             random_state=random_state,
         )
         val_ratio = val_split / (val_split + test_split)
         val_df, test_df = train_test_split(
             temp_df,
             train_size=val_ratio,
-            stratify=temp_df["class"],
+            stratify=temp_df["order"],
             random_state=random_state,
         )
     except ValueError:
         # Fallback to non-stratified split
-        print("  Warning: Using non-stratified split due to class imbalance")
+        print("  Warning: Using non-stratified split due to order imbalance")
         train_df, temp_df = train_test_split(
             df_sampled,
             train_size=train_split,
@@ -253,7 +258,7 @@ def prepare_data(
     print(f"  Split: train={len(train_df):,}, val={len(val_df):,}, test={len(test_df):,}")
 
     # Create datasets
-    train_dataset = ArthropodaDataset(
+    train_dataset = InsectaDataset(
         csv_path,
         fasta_path,
         seq_ids=train_df["seq_id"].tolist(),
@@ -262,7 +267,7 @@ def prepare_data(
         img_size=img_size,
     )
 
-    val_dataset = ArthropodaDataset(
+    val_dataset = InsectaDataset(
         csv_path,
         fasta_path,
         seq_ids=val_df["seq_id"].tolist(),
@@ -271,7 +276,7 @@ def prepare_data(
         img_size=img_size,
     )
 
-    test_dataset = ArthropodaDataset(
+    test_dataset = InsectaDataset(
         csv_path,
         fasta_path,
         seq_ids=test_df["seq_id"].tolist(),

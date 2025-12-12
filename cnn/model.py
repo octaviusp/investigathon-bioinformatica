@@ -1,10 +1,10 @@
 """
-Multi-Task CNN for Taxonomic Classification.
+Multi-Task CNN for Insecta Taxonomic Classification.
 
 Architecture:
 - 4 convolutional blocks (Conv → BatchNorm → ReLU → MaxPool)
 - Global Average Pooling
-- 3 classification heads (class, order, family)
+- 2 classification heads (order, family)
 """
 
 import torch
@@ -33,10 +33,10 @@ class ConvBlock(nn.Module):
 
 class MultiTaskCNN(nn.Module):
     """
-    Multi-task CNN for taxonomic classification.
+    Multi-task CNN for Insecta taxonomic classification.
 
     Takes 32×32 RGB images (DNA sequences converted to pixels) and outputs
-    predictions for class, order, and family taxonomic levels.
+    predictions for order and family taxonomic levels.
 
     Architecture:
         Input: (batch, 3, 32, 32)
@@ -45,27 +45,24 @@ class MultiTaskCNN(nn.Module):
         Conv Block 3: 64 → 128 channels, output: (batch, 128, 4, 4)
         Conv Block 4: 128 → 256 channels, output: (batch, 256, 2, 2)
         Global Average Pool: (batch, 256, 1, 1) → (batch, 256)
-        Dropout: 0.4
+        Dropout: 0.5
         Classification Heads:
-            - class_head: 256 → num_classes
             - order_head: 256 → num_orders
             - family_head: 256 → num_families
     """
 
     def __init__(
         self,
-        num_classes: int = 19,
-        num_orders: int = 130,
-        num_families: int = 1989,
-        dropout: float = 0.4,
+        num_orders: int = 27,
+        num_families: int = 917,
+        dropout: float = 0.5,
     ):
         """
         Initialize the model.
 
         Args:
-            num_classes: Number of taxonomic classes (within Arthropoda)
-            num_orders: Number of taxonomic orders
-            num_families: Number of taxonomic families
+            num_orders: Number of taxonomic orders (Insecta)
+            num_families: Number of taxonomic families (Insecta)
             dropout: Dropout rate before classification heads
         """
         super().__init__()
@@ -79,11 +76,10 @@ class MultiTaskCNN(nn.Module):
         # Global average pooling
         self.gap = nn.AdaptiveAvgPool2d(1)
 
-        # Dropout
+        # Dropout (increased to 0.5 to reduce overfitting)
         self.dropout = nn.Dropout(dropout)
 
-        # Classification heads
-        self.class_head = nn.Linear(256, num_classes)
+        # Classification heads (order + family only)
         self.order_head = nn.Linear(256, num_orders)
         self.family_head = nn.Linear(256, num_families)
 
@@ -112,7 +108,7 @@ class MultiTaskCNN(nn.Module):
             x: Input tensor of shape (batch, 3, 32, 32)
 
         Returns:
-            Dict with 'class', 'order', 'family' logits
+            Dict with 'order', 'family' logits
         """
         # Encoder
         x = self.conv1(x)
@@ -127,9 +123,8 @@ class MultiTaskCNN(nn.Module):
         # Dropout
         x = self.dropout(x)
 
-        # Classification heads
+        # Classification heads (order + family)
         return {
-            "class": self.class_head(x),
             "order": self.order_head(x),
             "family": self.family_head(x),
         }
@@ -148,17 +143,17 @@ def multi_task_loss(
     Compute weighted multi-task cross-entropy loss.
 
     Args:
-        outputs: Dict with 'class', 'order', 'family' logits
-        targets: Dict with 'class', 'order', 'family' labels
+        outputs: Dict with 'order', 'family' logits
+        targets: Dict with 'order', 'family' labels
         weights: Optional dict with loss weights per level
 
     Returns:
         Total weighted loss
     """
     if weights is None:
-        weights = {"class": 1.0, "order": 1.0, "family": 0.5}
+        weights = {"order": 1.0, "family": 0.5}
 
-    loss = torch.tensor(0.0, device=outputs["class"].device)
+    loss = torch.tensor(0.0, device=outputs["order"].device)
 
     for level, weight in weights.items():
         level_loss = nn.functional.cross_entropy(outputs[level], targets[level])
@@ -176,6 +171,5 @@ if __name__ == "__main__":
     x = torch.randn(4, 3, 32, 32)
     outputs = model(x)
 
-    print(f"Class output shape: {outputs['class'].shape}")  # (4, 19)
-    print(f"Order output shape: {outputs['order'].shape}")  # (4, 130)
-    print(f"Family output shape: {outputs['family'].shape}")  # (4, 1989)
+    print(f"Order output shape: {outputs['order'].shape}")  # (4, 27)
+    print(f"Family output shape: {outputs['family'].shape}")  # (4, 917)

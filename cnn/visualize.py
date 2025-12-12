@@ -49,9 +49,15 @@ def plot_training_history(
         plt.show()
     plt.close()
 
-    # Accuracy curves (one per level)
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    levels = ["class", "order", "family"]
+    # Accuracy curves (order + family for 2-head model)
+    levels = [l for l in ["order", "family"] if f"train_acc_{l}" in history]
+    if not levels:
+        # Fallback for old 3-head model
+        levels = [l for l in ["class", "order", "family"] if f"train_acc_{l}" in history]
+
+    fig, axes = plt.subplots(1, len(levels), figsize=(7 * len(levels), 5))
+    if len(levels) == 1:
+        axes = [axes]
 
     for ax, level in zip(axes, levels):
         train_key = f"train_acc_{level}"
