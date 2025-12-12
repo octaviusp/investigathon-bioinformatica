@@ -184,7 +184,7 @@ def prepare_data(
     print(f"  After removing rare orders: {len(df_filtered):,}")
 
     # Stratified sample by order (not class, since we only have Insecta)
-    if len(df_filtered) > sample_size:
+    if sample_size is not None and len(df_filtered) > sample_size:
         print(f"  Stratified sampling {sample_size:,} sequences...")
         df_sampled, _ = train_test_split(
             df_filtered,
@@ -194,6 +194,8 @@ def prepare_data(
         )
     else:
         df_sampled = df_filtered.copy()
+        if sample_size is None:
+            print(f"  Using all {len(df_sampled):,} sequences (no sampling)")
 
     # After sampling, ensure each order has enough samples for stratified split
     min_samples_per_order = 3
