@@ -47,12 +47,8 @@ def predict_sequence(sequence: str) -> dict:
     # Try to get label_encoders from checkpoint, otherwise rebuild
     label_encoders = checkpoint.get("label_encoders", None)
     if label_encoders is None:
-        # Rebuild label encoders from training data
+        # Rebuild label encoders from pre-filtered Insecta data
         train_df = pd.read_csv(CONFIG["csv_path"])
-        train_df = train_df[train_df["phylum"] == CONFIG["phylum_filter"]]
-        class_filter = CONFIG.get("class_filter", "Insecta")
-        if class_filter:
-            train_df = train_df[train_df["class"] == class_filter]
         label_encoders = {
             "order": LabelEncoder().fit(train_df["order"]),
             "family": LabelEncoder().fit(train_df["family"]),

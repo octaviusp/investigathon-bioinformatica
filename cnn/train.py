@@ -260,13 +260,11 @@ def train(
     device = get_device(config["device"])
     print(f"\nDevice: {device}")
 
-    # Prepare data
+    # Prepare data (using pre-filtered Insecta dataset)
     print("\n--- Preparing Data ---")
     train_dataset, val_dataset, test_dataset, label_encoders, num_classes = prepare_data(
         csv_path=config["csv_path"],
         fasta_path=config["fasta_path"],
-        phylum_filter=config["phylum_filter"],
-        class_filter=config.get("class_filter", "Insecta"),
         sample_size=config["sample_size"],
         train_split=config["train_split"],
         val_split=config["val_split"],

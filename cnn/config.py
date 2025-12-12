@@ -7,18 +7,20 @@ from pathlib import Path
 # Paths
 DATA_DIR = Path("data")
 OUTPUT_DIR = Path("output")
-CSV_PATH = DATA_DIR / "data_clean_phylum.csv"
-FASTA_PATH = DATA_DIR / "data_clean_phylum.fasta"
+# Use pre-filtered Insecta dataset (652K sequences, 27 orders, 917 families)
+CSV_PATH = DATA_DIR / "data_clean_insecta.csv"
+FASTA_PATH = DATA_DIR / "data_clean_insecta.fasta"
 
 # Data configuration
 CONFIG = {
-    # Dataset
+    # Dataset (Insecta-only, pre-filtered)
     "csv_path": CSV_PATH,
     "fasta_path": FASTA_PATH,
-    "phylum_filter": "Arthropoda",
-    "class_filter": "Insecta",  # Focus on Insecta only (652K samples)
-    "sample_size": 200000,  # Increased from 50K for better generalization
+    "sample_size": 200000,  # Sample from 652K Insecta sequences
     "img_size": 32,
+    # Expected class counts (for reference)
+    "num_orders": 27,
+    "num_families": 917,
     # Splits
     "train_split": 0.70,
     "val_split": 0.15,

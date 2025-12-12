@@ -149,23 +149,20 @@ ArthropodaDataset = InsectaDataset
 def prepare_data(
     csv_path: Path,
     fasta_path: Path,
-    phylum_filter: str = "Arthropoda",
-    class_filter: str = "Insecta",
     sample_size: int = 200000,
     train_split: float = 0.70,
     val_split: float = 0.15,
     test_split: float = 0.15,
     random_state: int = 42,
     img_size: int = 32,
+    **kwargs,  # Accept extra args for backward compatibility
 ) -> tuple:
     """
     Prepare train/val/test datasets for Insecta classification.
 
     Args:
-        csv_path: Path to CSV
-        fasta_path: Path to FASTA
-        phylum_filter: Phylum to filter (e.g., "Arthropoda")
-        class_filter: Class to filter (e.g., "Insecta")
+        csv_path: Path to pre-filtered Insecta CSV
+        fasta_path: Path to pre-filtered Insecta FASTA
         sample_size: Number of sequences to sample
         train_split, val_split, test_split: Split ratios
         random_state: Random seed
@@ -174,22 +171,16 @@ def prepare_data(
     Returns:
         (train_dataset, val_dataset, test_dataset, label_encoders, num_classes)
     """
-    print(f"Loading data from {csv_path}...")
+    print(f"Loading Insecta data from {csv_path}...")
 
-    # Load and filter by phylum
+    # Load pre-filtered Insecta data
     df = pd.read_csv(csv_path)
-    df_filtered = df[df["phylum"] == phylum_filter].copy()
-    print(f"  {phylum_filter} sequences: {len(df_filtered):,}")
-
-    # Filter by class (Insecta only)
-    if class_filter:
-        df_filtered = df_filtered[df_filtered["class"] == class_filter].copy()
-        print(f"  Filtered to {class_filter}: {len(df_filtered):,}")
+    print(f"  Total Insecta sequences: {len(df):,}")
 
     # Remove rare orders (need at least 2 members for stratified split)
-    order_counts = df_filtered["order"].value_counts()
+    order_counts = df["order"].value_counts()
     valid_orders = order_counts[order_counts >= 2].index
-    df_filtered = df_filtered[df_filtered["order"].isin(valid_orders)]
+    df_filtered = df[df["order"].isin(valid_orders)].copy()
     print(f"  After removing rare orders: {len(df_filtered):,}")
 
     # Stratified sample by order (not class, since we only have Insecta)
